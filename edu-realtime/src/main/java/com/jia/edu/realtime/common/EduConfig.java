@@ -11,6 +11,10 @@ package com.jia.edu.realtime.common;
  */
 public class EduConfig {
 
+	//Doris的FE地址
+	public static final String DORIS_FE="hadoop102:7030";
+	//Doris库名称
+	public static final String DORIS_DB="edu_realtime";
 	public static final String HBASE_NAMESPACE  = "edu_realtime";
 
 }

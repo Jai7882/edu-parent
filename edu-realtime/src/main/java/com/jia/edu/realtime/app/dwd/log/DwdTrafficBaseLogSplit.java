@@ -163,7 +163,7 @@ public class DwdTrafficBaseLogSplit {
 						JSONObject appVideo = value.getJSONObject("appVideo");
 						if (appVideo != null){
 							ctx.output(appVideoTag,value.toJSONString());
-							value.remove("appVideo");
+							return;
 						}
 						// 判断是否有 start 字段，如果有则说明数据为启动日志，将其发送到启动侧输出流；如果没有则说明为页面日志，进行下一步
 						JSONObject start = value.getJSONObject("start");

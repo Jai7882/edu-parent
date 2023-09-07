@@ -8,19 +8,20 @@ import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.checkerframework.checker.units.qual.K;
+
+import java.time.Duration;
 
 /**
- * ClassName: DwdInteractionScoreInfo
- * Package: com.jia.edu.realtime.app.dwd.log.db
+ * ClassName: DwdExamExamPaper
+ * Package: com.jia.edu.realtime.app.dwd.db
  * Description:
  *
  * @Author jjy
- * @Create 2023/9/7 0:42
+ * @Create 2023/9/7 13:28
  * @Version 1.0
- * <p>
- * 互动域评分事务事实表
  */
-public class DwdInteractionScoreInfo {
+public class DwdExamExamPaper {
 
 	public static void main(String[] args) {
 		// TODO 1.获取执行环境
@@ -28,6 +29,8 @@ public class DwdInteractionScoreInfo {
 		// 设置并行度 和kafka分区数匹配
 		env.setParallelism(4);
 		StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
+		// 设置 ttl
+		tableEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(10));
 
 		// TODO 2.检查点相关配置
 		// 开启检查点
@@ -47,46 +50,51 @@ public class DwdInteractionScoreInfo {
 //		// 设置Hadoop操作用户
 		System.setProperty("HADOOP_USER_NAME", "jia");
 
-		// TODO 3.获取kafka中topic_db主题的数据并筛选需要的表创建为kafka表
-		String groupId = "dwd_interaction_score_info_group";
+		// TODO 3.读取 topic_db 主题中的数据 并获取需要的表  test_exam
+		String groupId = "dwd_exam_exam_paper_group";
 		tableEnv.executeSql(KafkaUtil.getTopiDbDDL(groupId));
-		Table table = tableEnv.sqlQuery("select " +
-				" `data`['id'] id ," +
+		Table testExam = tableEnv.sqlQuery("select `data`['id'] id , " +
+				" `data`['paper_id'] paper_id , " +
 				" `data`['user_id'] user_id , " +
-				" `data`['course_id'] course_id," +
-				" `data`['review_stars'] review_stars ," +
-				"  ts, " +
-				"   proc_time" +
-				" from topic_db " +
-				" where `table` = 'review_info'  and `type` = 'insert' ");
-		tableEnv.createTemporaryView("review_info", table);
+				" `data`['score'] score , " +
+				" `data`['duration_sec'] duration_sec , " +
+				" `data`['create_time'] create_time ," +
+				" proc_time  " +
+				" from topic_db  " +
+				" where `table` = 'test_exam' " +
+				" and `type` = 'insert' ");
+		tableEnv.createTemporaryView("test_exam", testExam);
 
-		// TODO 4.从Hbase中获取对应维度表并创建动态表 Hbase lookup join 表名 course_info
-		tableEnv.executeSql(HbaseUtil.getCourseInfoLookUpDDL());
-		// TODO 5.将评论表和字典表进行关联
-		Table joined = tableEnv.sqlQuery("select r.id , " +
-				" user_id ," +
+		// TODO 4.读取Hbase中维度相关数据 dim_test_paper
+		tableEnv.executeSql(HbaseUtil.getTestPaperLookUpDDL());
+
+		// TODO 5.关联两张表
+		Table joined = tableEnv.sqlQuery("select e.id id ," +
+				" paper_id ," +
+				" user_id , " +
+				" score , " +
 				" course_id , " +
-				" c.course_name ," +
-				" review_stars," +
-				" ts " +
-				" from review_info r join course_info FOR SYSTEM_TIME AS OF r.proc_time AS c " +
-				" on r.course_id = c.id");
-		tableEnv.createTemporaryView("joined_table" , joined);
+				" duration_sec , " +
+				" create_time " +
+				" from test_exam e join test_paper for system_time as of e.proc_time as p" +
+				" on e.paper_id = p.id");
+		tableEnv.createTemporaryView("joined_table",joined);
 
-		// TODO 6.将关联之后的数据写到kafka主题中
-		// 创建动态表和要写入的kafka主题进行映射
-		tableEnv.executeSql("create table dwd_interaction_score_info(" +
+		// TODO 6.将结果写入kafka主题中
+		// 创建动态表
+		tableEnv.executeSql("create table dwd_exam_exam_paper(" +
 				" id String ," +
+				" paper_id String ," +
 				" user_id String ," +
+				" score String ," +
 				" course_id String ," +
-				" course_name String ," +
-				" review_stars String ," +
-				" ts String ," +
-				" primary key (id) not enforced)" + KafkaUtil.getUpsertKafkaDDL("dwd_interaction_score_info"));
+				" duration_sec String ," +
+				" create_time String , " +
+				" primary key(id) not enforced" +
+				")" + KafkaUtil.getUpsertKafkaDDL("dwd_exam_exam_paper"));
+		// 写入
+		tableEnv.executeSql("insert into dwd_exam_exam_paper select * from joined_table");
 
-		// TODO 7.将数据插入到主题中
-		tableEnv.executeSql("insert into dwd_interaction_score_info select * from joined_table");
-		
 	}
+
 }

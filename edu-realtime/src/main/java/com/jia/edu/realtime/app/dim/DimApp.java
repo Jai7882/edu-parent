@@ -49,9 +49,7 @@ public class DimApp {
 
 	public static void main(String[] args) {
 		// TODO 1.获取执行环境
-		Configuration configuration = new Configuration();
-		configuration.setInteger("rest.port",5678);
-		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(configuration);
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		// 设置并行度 和kafka分区数匹配
 		env.setParallelism(4);
 

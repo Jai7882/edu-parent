@@ -9,18 +9,18 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
+import java.time.Duration;
+
 /**
- * ClassName: DwdInteractionScoreInfo
- * Package: com.jia.edu.realtime.app.dwd.log.db
+ * ClassName: DwdExamExamPaper
+ * Package: com.jia.edu.realtime.app.dwd.db
  * Description:
  *
  * @Author jjy
- * @Create 2023/9/7 0:42
+ * @Create 2023/9/7 13:28
  * @Version 1.0
- * <p>
- * 互动域评分事务事实表
  */
-public class DwdInteractionScoreInfo {
+public class DwdExamExamPaperQuestion {
 
 	public static void main(String[] args) {
 		// TODO 1.获取执行环境
@@ -28,6 +28,8 @@ public class DwdInteractionScoreInfo {
 		// 设置并行度 和kafka分区数匹配
 		env.setParallelism(4);
 		StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
+		// 设置 ttl
+		tableEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(10));
 
 		// TODO 2.检查点相关配置
 		// 开启检查点
@@ -47,46 +49,38 @@ public class DwdInteractionScoreInfo {
 //		// 设置Hadoop操作用户
 		System.setProperty("HADOOP_USER_NAME", "jia");
 
-		// TODO 3.获取kafka中topic_db主题的数据并筛选需要的表创建为kafka表
-		String groupId = "dwd_interaction_score_info_group";
+		// TODO 3.读取 topic_db 主题中的数据 并获取需要的表  test_exam_question
+		String groupId = "dwd_exam_exam_paper_question_group";
 		tableEnv.executeSql(KafkaUtil.getTopiDbDDL(groupId));
-		Table table = tableEnv.sqlQuery("select " +
-				" `data`['id'] id ," +
+		Table testExamQuestion = tableEnv.sqlQuery("select `data`['id'] id , " +
+				" `data`['exam_id'] exam_id , " +
+				" `data`['paper_id'] paper_id , " +
+				" `data`['question_id'] question_id , " +
 				" `data`['user_id'] user_id , " +
-				" `data`['course_id'] course_id," +
-				" `data`['review_stars'] review_stars ," +
-				"  ts, " +
-				"   proc_time" +
-				" from topic_db " +
-				" where `table` = 'review_info'  and `type` = 'insert' ");
-		tableEnv.createTemporaryView("review_info", table);
+				" `data`['is_correct'] is_correct " +
+				" from topic_db  " +
+				" where `table` = 'test_exam_question' " +
+				" and `type` = 'insert' ");
+		tableEnv.createTemporaryView("test_exam_question", testExamQuestion);
 
-		// TODO 4.从Hbase中获取对应维度表并创建动态表 Hbase lookup join 表名 course_info
-		tableEnv.executeSql(HbaseUtil.getCourseInfoLookUpDDL());
-		// TODO 5.将评论表和字典表进行关联
-		Table joined = tableEnv.sqlQuery("select r.id , " +
-				" user_id ," +
-				" course_id , " +
-				" c.course_name ," +
-				" review_stars," +
-				" ts " +
-				" from review_info r join course_info FOR SYSTEM_TIME AS OF r.proc_time AS c " +
-				" on r.course_id = c.id");
-		tableEnv.createTemporaryView("joined_table" , joined);
+		// TODO 4.从Hbase中查询维度数据 dim_test_question_info
+		// 省略 无意义
+//		tableEnv.executeSql(HbaseUtil.getCourseInfoLookUpDDL())
 
-		// TODO 6.将关联之后的数据写到kafka主题中
-		// 创建动态表和要写入的kafka主题进行映射
-		tableEnv.executeSql("create table dwd_interaction_score_info(" +
+		// TODO 5.将数据写入kafka主题中
+		// 创建动态表
+		tableEnv.executeSql("create table dwd_exam_exam_paper_question(" +
 				" id String ," +
+				" exam_id String ," +
+				" paper_id String ," +
+				" question_id String ," +
 				" user_id String ," +
-				" course_id String ," +
-				" course_name String ," +
-				" review_stars String ," +
-				" ts String ," +
-				" primary key (id) not enforced)" + KafkaUtil.getUpsertKafkaDDL("dwd_interaction_score_info"));
+				" is_correct String ," +
+				" primary key (id) not enforced" +
+				")" + KafkaUtil.getUpsertKafkaDDL("dwd_exam_exam_paper_question"));
+		// 写入动态表中
+		tableEnv.executeSql("insert into dwd_exam_exam_paper_question select * from test_exam_question");
 
-		// TODO 7.将数据插入到主题中
-		tableEnv.executeSql("insert into dwd_interaction_score_info select * from joined_table");
-		
 	}
+
 }

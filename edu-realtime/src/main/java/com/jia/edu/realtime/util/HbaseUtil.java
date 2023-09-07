@@ -133,4 +133,12 @@ public class HbaseUtil {
 				")";
 	}
 
+	public static String getTestPaperLookUpDDL() {
+		return "CREATE TABLE test_paper (" +
+				" id string, " +
+				" info ROW<course_id String> ," +
+				" PRIMARY KEY (id) NOT ENFORCED )" +
+				getHbaseDDL(EduConfig.HBASE_NAMESPACE +":dim_test_paper");
+
+	}
 }

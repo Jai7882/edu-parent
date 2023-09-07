@@ -52,12 +52,24 @@ public class DwdTradeCartAdd {
 				" `data`['course_id'] course_id ," +
 				" `data`['course_name'] course_name," +
 				" `data`['cart_price'] cart_price ," +
-				" `data`['session_id'] session_id " +
+				" `data`['session_id'] session_id ," +
+				" ts " +
 				" from topic_db where `table` = 'cart_info' and `type` = 'insert' ");
 		tableEnv.createTemporaryView("cart_info" , table);
-		tableEnv.executeSql("select * from cart_info").print();
 
-		// TODO 4.
+		// TODO 4.将加购表写到kafka的主题中
+		// 创建动态表和要写入的主题进行映射
+		tableEnv.executeSql("create table dwd_trade_cart_add(" +
+				" id String ," +
+				" user_id String ," +
+				" course_id String ," +
+				" course_name String , " +
+				" cart_price String ," +
+				" session_id String ," +
+				" ts String ," +
+				" primary key (id) not enforced " +
+				")" + KafkaUtil.getUpsertKafkaDDL("dwd_trade_cart_add"));
+		tableEnv.executeSql("insert into dwd_trade_cart_add select * from cart_info");
 
 	}
 }
