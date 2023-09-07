@@ -5,6 +5,7 @@ import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 /**
@@ -46,7 +47,15 @@ public class DwdTradeCartAdd {
 		// TODO 3.获取kafka中topic_db主题的数据并筛选需要的表创建为kafka表
 		String groupId = "dwd_trade_cart_add_group";
 		tableEnv.executeSql(KafkaUtil.getTopiDbDDL(groupId));
-		tableEnv.sqlQuery("select ")
+		Table table = tableEnv.sqlQuery("select `data`['id'] id , " +
+				" `data`['user_id'] user_id , " +
+				" `data`['course_id'] course_id ," +
+				" `data`['course_name'] course_name," +
+				" `data`['cart_price'] cart_price ," +
+				" `data`['session_id'] session_id " +
+				" from topic_db where `table` = 'cart_info' and `type` = 'insert' ");
+		tableEnv.createTemporaryView("cart_info" , table);
+		tableEnv.executeSql("select * from cart_info").print();
 
 		// TODO 4.
 
