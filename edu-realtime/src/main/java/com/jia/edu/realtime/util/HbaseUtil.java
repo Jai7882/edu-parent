@@ -1,12 +1,18 @@
 package com.jia.edu.realtime.util;
 
+import com.alibaba.fastjson.JSONObject;
 import com.jia.edu.realtime.common.EduConfig;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 /**
  * ClassName: HbaseUtil
@@ -18,6 +24,27 @@ import java.io.IOException;
  * @Version 1.0
  */
 public class HbaseUtil {
+
+	public static JSONObject getObjByRowKey(Connection conn, String nameSpace, String tableName, String rowKey) {
+		try (Table table = conn.getTable(TableName.valueOf(nameSpace, tableName))) {
+			Get get = new Get(Bytes.toBytes(rowKey));
+			Result result = table.get(get);
+			List<Cell> cells = result.listCells();
+			JSONObject jsonObject = new JSONObject();
+			if (cells != null && cells.size() > 0) {
+				for (Cell cell : cells) {
+					String columName = Bytes.toString(CellUtil.cloneQualifier(cell));
+					String columValue = Bytes.toString(CellUtil.cloneValue(cell));
+					jsonObject.put(columName, columValue);
+				}
+			}
+			return jsonObject;
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
 
 	// 获取Hbase连接
 	public static Connection getConnection() {
@@ -86,7 +113,7 @@ public class HbaseUtil {
 
 	public static void delRow(Connection conn, String hbaseNamespace, String sinkTable, String rowKey) {
 		// 删除对应rowKey的数据
-		try (Table table = conn.getTable(TableName.valueOf(hbaseNamespace, sinkTable))){
+		try (Table table = conn.getTable(TableName.valueOf(hbaseNamespace, sinkTable))) {
 			Delete delete = new Delete(Bytes.toBytes(rowKey));
 			table.delete(delete);
 		} catch (IOException e) {
@@ -95,14 +122,14 @@ public class HbaseUtil {
 	}
 
 	public static void putRow(Connection conn, String hbaseNamespace, String sinkTable, String sinkFamily, String[] columns, String[] values, String sinkRowKey) {
-		try (Table table = conn.getTable(TableName.valueOf(hbaseNamespace, sinkTable))){
+		try (Table table = conn.getTable(TableName.valueOf(hbaseNamespace, sinkTable))) {
 			Put put = new Put(Bytes.toBytes(sinkRowKey));
 			for (int i = 0; i < columns.length; i++) {
 				String column = columns[i];
 				String value = values[i];
 				// 有部分列的值是 null, 不用写出
-				if (value!=null){
-					put.addColumn(Bytes.toBytes(sinkFamily),Bytes.toBytes(column),Bytes.toBytes(value));
+				if (value != null) {
+					put.addColumn(Bytes.toBytes(sinkFamily), Bytes.toBytes(column), Bytes.toBytes(value));
 				}
 			}
 			table.put(put);
@@ -117,7 +144,7 @@ public class HbaseUtil {
 				" id string, " +
 				" info ROW<course_name String> ," +
 				" PRIMARY KEY (id) NOT ENFORCED )" +
-				getHbaseDDL(EduConfig.HBASE_NAMESPACE +":dim_course_info");
+				getHbaseDDL(EduConfig.HBASE_NAMESPACE + ":dim_course_info");
 	}
 
 	private static String getHbaseDDL(String tableName) {
@@ -138,7 +165,49 @@ public class HbaseUtil {
 				" id string, " +
 				" info ROW<course_id String> ," +
 				" PRIMARY KEY (id) NOT ENFORCED )" +
-				getHbaseDDL(EduConfig.HBASE_NAMESPACE +":dim_test_paper");
+				getHbaseDDL(EduConfig.HBASE_NAMESPACE + ":dim_test_paper");
 
+	}
+
+	public static AsyncConnection getAsyncConnection() {
+		Configuration configuration = new Configuration();
+		configuration.set("hbase.zookeeper.quorum", " hadoop102,hadoop103,hadoop104");
+		try {
+			return ConnectionFactory.createAsyncConnection(configuration).get();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static void closeAsyncConnection(AsyncConnection conn) {
+		if (conn != null && !conn.isClosed()) {
+			try {
+				conn.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	public static JSONObject getDimInfoFromHbaseByAsync(AsyncConnection hbaseConn, String hbaseNamespace, String tableName, String key) {
+		try {
+			TableName tableName1 = TableName.valueOf(hbaseNamespace, tableName);
+			AsyncTable<AdvancedScanResultConsumer> table = hbaseConn.getTable(tableName1);
+			Get get = new Get(Bytes.toBytes(key));
+			Result result = table.get(get).get();
+			List<Cell> cells = result.listCells();
+			if (cells != null && cells.size() > 0) {
+				JSONObject jsonObject = new JSONObject();
+				for (Cell cell : cells) {
+					String column = Bytes.toString(CellUtil.cloneQualifier(cell));
+					String value = Bytes.toString(CellUtil.cloneValue(cell));
+					jsonObject.put(column,value);
+				}
+				return jsonObject;
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		return null;
 	}
 }

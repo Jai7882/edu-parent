@@ -32,7 +32,7 @@ public class KafkaUtil {
 				.setBootstrapServers(KAFKA_SERVER)
 				.setTopics(topic)
 				.setGroupId(groupId)
-				.setStartingOffsets(OffsetsInitializer.earliest())
+				.setStartingOffsets(OffsetsInitializer.latest())
 				.setValueOnlyDeserializer(new DeserializationSchema<String>() {
 					@Override
 					public String deserialize(byte[] message) throws IOException {
@@ -84,7 +84,7 @@ public class KafkaUtil {
 				"  'topic' = '" + topic + "',\n" +
 				"  'properties.bootstrap.servers' = '" + KAFKA_SERVER + "',\n" +
 				"  'properties.group.id' = '" + groupId + "',\n" +
-				"  'scan.startup.mode' = 'earliest-offset',\n" +
+				"  'scan.startup.mode' = 'latest-offset',\n" +
 				"  'format' = 'json'\n" +
 				")";
 	}

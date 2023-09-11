@@ -84,6 +84,7 @@ public class DwdTradePayScu {
 				" date_id String ," +
 				" session_id String ," +
 				" province_id String ," +
+				" source String ," +
 				" ts String ," +
 				" `proc_time` as PROCTIME() , " +
 				" row_time as to_timestamp(from_unixtime(cast(ts as bigint))) , " +
