@@ -3,6 +3,7 @@ package com.jia.edu.realtime.app.dws;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.jia.edu.realtime.app.function.BeanToJsonStrFunction;
+import com.jia.edu.realtime.app.function.DimAsyncFunction;
 import com.jia.edu.realtime.bean.TrafficPageViewBean;
 import com.jia.edu.realtime.util.DateFormatUtil;
 import com.jia.edu.realtime.util.DorisUtil;
@@ -19,10 +20,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.streaming.api.CheckpointingMode;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.datastream.WindowedStream;
+import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
@@ -32,6 +30,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.util.Collector;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ClassName: DwsTrafficScIsNewPageViewWindow
@@ -154,6 +153,7 @@ public class DwsTrafficScIsNewPageViewWindow {
 						"",
 						"",
 						sc,
+						"",
 						isNew,
 						"",
 						uvCt,
@@ -208,9 +208,26 @@ public class DwsTrafficScIsNewPageViewWindow {
 			}
 		});
 
+		// 关联base_source表 获得source_name字段
+		SingleOutputStreamOperator<TrafficPageViewBean> resultDs = AsyncDataStream.unorderedWait(
+				reduced,
+				new DimAsyncFunction<TrafficPageViewBean>("dim_base_source") {
+					@Override
+					public void join(TrafficPageViewBean obj, JSONObject dimInfoJsonObj) {
+						obj.setSourceName(dimInfoJsonObj.getString("source_site"));
+					}
+
+					@Override
+					public String getKey(TrafficPageViewBean obj) {
+						return obj.getSc();
+					}
+				}, 60, TimeUnit.SECONDS
+		);
+
+
 		// TODO 11.将聚合结果写入Doris
-		reduced.map(new BeanToJsonStrFunction<TrafficPageViewBean>())
-				.sinkTo(DorisUtil.getDorisSink("dws_traffic_sc_is_new_page_view_window"));
+		resultDs.map(new BeanToJsonStrFunction<TrafficPageViewBean>())
+				.sinkTo(DorisUtil.getDorisSink("dws_traffic_sc_is_new_window"));
 
 		try {
 			env.execute();

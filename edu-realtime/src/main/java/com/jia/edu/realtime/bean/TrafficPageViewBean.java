@@ -15,6 +15,8 @@ public class TrafficPageViewBean {
     private String edt;
     // 来源
     private String sc;
+    // 来源名称
+    private String sourceName;
     // 新老访客状态标记
     private String isNew ;
     // 当天日期
